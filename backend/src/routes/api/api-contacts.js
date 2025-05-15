@@ -12,7 +12,12 @@ const router = Router();
  * GET /api/contacts: Retrieves a JSON array of all contacts, with a 200 OK response.
  */
 router.get("/", async (req, res) => {
-  return res.json(await retrieveContacts());
+  try {
+    return res.json(await retrieveContacts());
+  } catch (err) {
+    console.error(err); // For debugging
+    return res.status(500).send("Unexpected error when GETting contacts");
+  }
 });
 
 /**
@@ -25,15 +30,18 @@ router.post("/", async (req, res) => {
     const contact = await createContact(req.body);
     return res.status(201).location(`/contacts/${contact._id}`).json(contact);
   } catch (err) {
-    // TODO Error case: Duplicate name
+    // Error case: Duplicate name
+    if (err.code === 11000) return res.status(422).send("Contact name must be unique.");
 
-    // TODO Error case: Missing name
+    // Error case: Missing name
+    if (err.name === "ValidationError") return res.status(422).send(err.message);
 
-    // TODO Error case: Invalid _id
+    // Error case: Invalid _id
+    if (err.name === "CastError") return res.status(422).send("Invalid contact id");
 
     // Unexpected error
     console.error(err); // For debugging
-    return res.status(500).send("Unexpected error when GETting contacts");
+    return res.status(500).send("Unexpected error when POSTing contact");
   }
 });
 
@@ -41,7 +49,7 @@ router.post("/", async (req, res) => {
  * PATCH /api/contacts/:id: Updates one or more properties of the contact with the given id (in the path param).
  * - If a contact with that id doesn't exist, returns a 404 response.
  * - If trying to update a contact's name to a non-unique name, returns a 422 response.
- * - Otherwise, returns a 200 success response, with the JSON of the updated contact.
+ * - Otherwise, returns a 204 No Content success response.
  */
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
@@ -51,9 +59,11 @@ router.patch("/:id", async (req, res) => {
     if (!updated) return res.status(404).send(`Contact ${id} not found`);
     return res.json(updated);
   } catch (err) {
-    // TODO Error case: Duplicate name
+    // Error case: Duplicate name
+    if (err.code === 11000) return res.status(422).send("Contact name must be unique.");
 
-    // TODO Error case: Invalid _id
+    // Error case: Invalid _id
+    if (err.name === "CastError") return res.status(422).send("Invalid contact id");
 
     // Unexpected error
     console.error(err); // For debugging
@@ -72,11 +82,11 @@ router.delete("/:id", async (req, res) => {
     await deleteContact(id);
     return res.sendStatus(204);
   } catch (err) {
-    // TODO Error case: Invalid _id
+    // Error case: Invalid _id
+    if (err.name === "CastError") return res.status(422).send("Invalid contact id");
 
-    // Unexpected error
     console.error(err); // For debugging
-    return res.status(500).send("Unexpected error when PATCHing contact");
+    return res.status(500).send("Unexpected error when DELETEing contact");
   }
 });
 
